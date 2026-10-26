@@ -22,7 +22,7 @@ ok((await win.title()).includes('小柯機器人3D繪圖與列印工具'), '視�
 const lang = await win.evaluate(async () => (await document.getElementById('engine').contentWindow.solidcraft.request('ui.prefs', {})).language);
 ok(lang === 'zh', `SolidCraft 介面語言 = ${lang}`);
 const tw = await win.evaluate(() => fetch('engine/index.html').then((r) => r.text()));
-ok(!tw.includes('serviceWorker.register('), '引擎首頁已移除 Service Worker');
+ok(tw.includes('false /* 小柯：不註冊 Service Worker */'), '引擎首頁已停用 Service Worker');
 
 // 草圖精靈：收納盒
 await win.click('.tpl-card[data-id="storage"]');

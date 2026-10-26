@@ -143,3 +143,8 @@ dialog a { color: var(--blue); cursor: pointer; text-decoration: underline; }
   #tplFields .val input[type=range] { display: none; }
 }
 #txtFont { flex-basis: 100%; width: 100%; }
+
+/* 線上版 */
+.web-only { display: none; }
+body.web .web-only { display: block; }
+body.web .desktop-only { display: none !important; }

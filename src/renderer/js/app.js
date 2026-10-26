@@ -5,7 +5,9 @@ import { PRINTERS, MATERIALS, fits, estimate } from './printers.js';
 import { FORMATS, QUALITIES } from './formats.js';
 
 const $ = (id) => document.getElementById(id);
-const xk = window.xk;
+// 桌機版由 preload 提供 window.xk；線上版改用瀏覽器實作
+const xk = window.xk || (await import('./web-shim.js')).xk;
+const WEB = !!xk.web;
 const store = {
   get(k, d) {
     try {
@@ -70,6 +72,12 @@ async function withBusy(label, fn) {
 
 // ---------- 啟動 ----------
 async function boot() {
+  if (WEB) {
+    document.body.classList.add('web');
+    $('btnBambu').textContent = '下載 3MF 給 Bambu Studio';
+    $('btnBambu2').textContent = '下載 3MF 給 Bambu Studio 列印';
+    $('brandSub').textContent = '線上版・SolidCraft 參數化 3D 草圖 ✕ 拓竹 Bambu Studio 列印';
+  }
   S.info = await xk.info();
   $('aboutVersion').textContent = `v${S.info.version}`;
   $('aboutSc').textContent = S.info.solidcraft ? `v${S.info.solidcraft}` : '';
@@ -355,7 +363,7 @@ async function exportAs(fmt, action) {
       const base = await exportName();
       const title = base + (fmt.suffix || '');
       const job = await xk.exportExpect({ title, ext: fmt.ext, convertTo: fmt.convert || null, action, multi: !!fmt.multi });
-      const params = { path: `/downloads/${job.engineFile}`, format: fmt.convert ? 'stl' : fmt.engine };
+      const params = { path: job.enginePath, format: fmt.convert ? 'stl' : fmt.engine };
       if (['3mf', 'stl', 'stla', 'obj'].includes(params.format) || fmt.convert) params.quality = $('quality').value;
       if (params.format === 'stla') delete params.quality;
       try {
@@ -368,7 +376,10 @@ async function exportAs(fmt, action) {
       if (!r.ok) throw new Error(r.error);
       refreshRecent();
       const name = r.file.split(/[\\/]/).pop();
-      if (action === 'bambu') {
+      if (action === 'bambu' && WEB) {
+        status(`已下載 ${name}`);
+        toast(`🖨️ 已下載 <b>${esc(name)}</b>。<br>請在 Bambu Studio 選「檔案 → 匯入 → 匯入 3MF/STL…」或直接把檔案拖進 Bambu Studio，再選印表機與線材切片列印。<br><span class="muted">想一鍵直接開啟 Bambu Studio，請改用桌機版。</span>`, false, 12000);
+      } else if (action === 'bambu') {
         if (r.bambu) {
           status(`已送到 Bambu Studio：${name}`);
           toast(`🖨️ 已用 Bambu Studio 開啟 <b>${esc(name)}</b>，請在 Bambu Studio 選擇印表機與線材後切片列印。`, false, 8000);
@@ -379,7 +390,7 @@ async function exportAs(fmt, action) {
         }
       } else {
         status(`已匯出 ${name}${r.size ? `（${size(r.size)}）` : ''}`);
-        toast(`💾 已匯出 <b>${esc(name)}</b> <button class="link" id="toastShow">在資料夾中顯示</button>`, false, 7000);
+        toast(WEB ? `💾 已下載 <b>${esc(name)}</b>（瀏覽器的「下載」資料夾）` : `💾 已匯出 <b>${esc(name)}</b> <button class="link" id="toastShow">在資料夾中顯示</button>`, false, 7000);
         $('toastShow')?.addEventListener('click', () => xk.show(r.file));
       }
       return r;
@@ -392,7 +403,7 @@ async function exportAs(fmt, action) {
 
 async function sendToBambu() {
   await refreshBambu();
-  if (!S.bambu?.installed) {
+  if (!S.bambu?.installed && !WEB) {
     $('dlgBambu').showModal();
     return;
   }
@@ -402,7 +413,9 @@ async function sendToBambu() {
 async function refreshRecent() {
   const list = await xk.exports();
   $('recent').innerHTML = list.length
-    ? list.slice(0, 12).map((f, i) => `<li title="${esc(f.file)}"><span>${esc(f.name)}</span><small class="muted">${size(f.size)}</small><button data-i="${i}" data-a="bambu">列印</button><button data-i="${i}" data-a="show">位置</button></li>`).join('')
+    ? list.slice(0, 12).map((f, i) => WEB
+        ? `<li><span>${esc(f.name)}</span><small class="muted">${f.size ? size(f.size) : ''} ${new Date(f.mtime).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</small></li>`
+        : `<li title="${esc(f.file)}"><span>${esc(f.name)}</span><small class="muted">${size(f.size)}</small><button data-i="${i}" data-a="bambu">列印</button><button data-i="${i}" data-a="show">位置</button></li>`).join('')
     : '<li class="muted">還沒有匯出的檔案</li>';
   $('recent').onclick = async (e) => {
     const b = e.target.closest('button');
@@ -441,7 +454,12 @@ async function refreshBambu() {
   const el = $('bambuStatus');
   $('aboutBambu').textContent = `建議 ${s.recommended.label}`;
   $('bambuRec').textContent = `Bambu Studio ${s.recommended.label}`;
-  if (s.installed) {
+  if (s.web) {
+    el.className = 'status-card';
+    el.innerHTML = `線上版會把模型下載成 3MF，再用 Bambu Studio 開啟列印。<div class="row"><button id="btnGetBambu" class="link small">下載 Bambu Studio ${s.recommended.label}</button><button id="btnGetDesktop" class="link small">下載桌機版（可一鍵開啟）</button></div>`;
+    $('btnGetBambu').onclick = () => xk.external(s.recommended.page);
+    $('btnGetDesktop').onclick = () => xk.external(s.desktopPage);
+  } else if (s.installed) {
     el.className = `status-card ${s.matches ? 'ok' : 'warn'}`;
     el.innerHTML = `✔ 已安裝 Bambu Studio ${esc(s.version || '')}${s.matches ? '' : `<br><span class="muted">建議版本為 ${s.recommended.label}，目前版本一樣可以使用。</span>`}`;
   } else {
@@ -494,10 +512,17 @@ function setupDialogs() {
     if (!done) $('bambuDlText').textContent = `下載中… ${size(got)}${total ? ` / ${size(total)}` : ''}`;
   });
   // 裝完 Bambu Studio 回到視窗時重新偵測
-  window.addEventListener('focus', () => refreshBambu());
+  if (!WEB) window.addEventListener('focus', () => refreshBambu());
 }
 
 async function checkUpdate(manual = false) {
+  if (WEB) {
+    $('updateText').textContent = '線上版每次開啟都是最新版本。也可以下載 Windows／Mac 桌機版，離線使用並一鍵開啟 Bambu Studio。';
+    $('btnCheckUpdate').classList.add('hidden');
+    $('btnUpdatePage').classList.remove('hidden');
+    $('btnUpdatePage').textContent = '下載桌機版';
+    return;
+  }
   if (manual) $('updateText').textContent = '檢查中…';
   try {
     const u = await xk.updateCheck();

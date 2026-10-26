@@ -18,9 +18,14 @@
 
 | 平台 | 狀態 |
 |---|---|
-| Windows 11 桌機版 | ✅ v1.0.0（安裝版與免安裝版） |
-| macOS（MacBook Pro）桌機版 | 規劃中 |
-| 線上版 | 規劃中 |
+| Windows 11 桌機版 | ✅ 安裝版與免安裝版，一鍵開啟 Bambu Studio |
+| macOS（MacBook Pro）桌機版 | ✅ Apple 晶片（arm64）與 Intel（x64）dmg |
+| 線上版 | ✅ https://achir1015.github.io/xiaoke-3d/（Chrome／Edge，免安裝；下載 3MF 再用 Bambu Studio 開啟） |
+
+下載桌機版：[GitHub Releases](https://github.com/achir1015/xiaoke-3d/releases/latest)
+
+### macOS 第一次開啟
+安裝檔尚未經 Apple 公證：把 App 拖進「應用程式」後，第一次請在 App 上按右鍵 →「打開」→「打開」。
 
 ## 開發
 
@@ -30,8 +35,11 @@
 npm install          # 會自動下載 SolidCraft 網頁版引擎並繁體中文化
 npm start            # 啟動
 npm test             # 單元測試
-node e2e/smoke.mjs   # 端對端測試（37 項）
+node e2e/smoke.mjs   # 桌機版端對端測試
+node e2e/web.mjs     # 線上版端對端測試（Chrome）
+node e2e/bambu.mjs   # 實機送到 Bambu Studio（需已安裝）
 npm run dist:win     # 建立 Windows 安裝檔與免安裝版（dist/）
+npm run build:web    # 建立線上版（site/），npm run serve:web 本機預覽
 ```
 
 ## 授權與致謝

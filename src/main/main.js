@@ -1,9 +1,9 @@
 // 小柯機器人3D繪圖與列印工具：Electron 主程序
-// - 本機 http://localhost:<固定埠> 載入介面與 SolidCraft 網頁版引擎（同源，介面可直接呼叫 window.solidcraft）。
+// - 本機 http://127.0.0.1:<固定埠> 載入介面與 SolidCraft 網頁版引擎（同源，介面可直接呼叫 window.solidcraft）。
 //   不用自訂協定，是因為 SolidCraft 存設計檔用的瀏覽器檔案空間（OPFS）只在 https／localhost 可用；
 //   埠號固定，設計檔與自動備份才會跨次保留。只綁 127.0.0.1，其他電腦連不到。
 // - 攔截引擎的「下載」把匯出的 3MF/STL/STEP… 存到匯出資料夾，需要時轉檔，再交給 Bambu Studio
-const { app, BrowserWindow, ipcMain, shell, dialog, net, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, net, session, Menu } = require('electron');
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -11,6 +11,7 @@ const bambu = require('./bambu');
 const { convertStl } = require('./convert');
 const { Updater } = require('./updater');
 const textsvg = require('./textsvg');
+const { transformEngineHtml } = require('./enginehtml');
 const updater = new Updater();
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -23,6 +24,8 @@ const profile = process.argv.find((a) => a.startsWith('--profile='))?.slice(10);
 if (profile) app.setPath('userData', path.join(app.getPath('appData'), `xiaoke-3d-${profile}`));
 
 const PORTS = [47831, 47832, 47833, 47834, 47835];
+// 確認連上的是自己的伺服器（Windows 上別的程式可能同時綁住同一個埠）
+const SERVER_TOKEN = require('node:crypto').randomBytes(16).toString('hex');
 let origin = null;
 
 const MIME = {
@@ -41,11 +44,7 @@ function inside(base, p) {
 let engineIndex = null;
 function engineIndexHtml() {
   if (!engineIndex) {
-    engineIndex = fs.readFileSync(path.join(ENGINE, 'index.html'), 'utf8')
-      .replace(/navigator\.serviceWorker\.register\([^)]*\)(\.catch\([^)]*\))?/, 'void 0')
-      .replace(/\s+integrity="[^"]*"/g, '') // wasm 已改成繁體中文目錄，原本的雜湊不再適用
-      .replace('<html lang="en">', '<html lang="zh-Hant">')
-      .replace('<title>SolidCraft</title>', '<title>SolidCraft（小柯機器人3D繪圖與列印工具）</title><style>html,body{overflow:hidden}</style>');
+    engineIndex = transformEngineHtml(fs.readFileSync(path.join(ENGINE, 'index.html'), 'utf8'));
   }
   return engineIndex;
 }
@@ -74,28 +73,45 @@ function readFile(file, allowed) {
   }
 }
 
-function startServer() {
+async function startServer() {
   const server = http.createServer((req, res) => {
     // 只接受本機位址的請求（擋 DNS rebinding）
     if (!/^(localhost|127\.0\.0\.1):\d+$/.test(req.headers.host || '') || (req.method !== 'GET' && req.method !== 'HEAD')) {
       res.writeHead(403).end();
       return;
     }
-    const [status, type, body] = route(new URL(req.url, 'http://localhost').pathname);
+    const pathname = new URL(req.url, 'http://localhost').pathname;
+    if (pathname === '/__xiaoke_token') {
+      res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }).end(SERVER_TOKEN);
+      return;
+    }
+    const [status, type, body] = route(pathname);
     res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
     res.end(req.method === 'HEAD' ? undefined : body);
   });
-  return new Promise((resolve, reject) => {
-    const tryPort = (i) => {
-      if (i >= PORTS.length) return reject(new Error('本機連接埠都被占用'));
-      server.once('error', () => tryPort(i + 1));
-      server.listen(PORTS[i], '127.0.0.1', () => {
+  const listen = (port) =>
+    new Promise((resolve) => {
+      server.once('error', () => resolve(false));
+      server.listen(port, '127.0.0.1', () => {
         server.removeAllListeners('error');
-        resolve(`http://localhost:${PORTS[i]}`);
+        resolve(true);
       });
-    };
-    tryPort(0);
-  });
+    });
+  const mine = async (port) => {
+    try {
+      const r = await net.fetch(`http://127.0.0.1:${port}/__xiaoke_token`, { cache: 'no-store' });
+      return (await r.text()) === SERVER_TOKEN;
+    } catch {
+      return false;
+    }
+  };
+  for (const port of PORTS) {
+    if (!(await listen(port))) continue;
+    // 用 127.0.0.1 而不是 localhost：localhost 可能先解析成 IPv6 的 ::1，連到別的程式
+    if (await mine(port)) return `http://127.0.0.1:${port}`;
+    await new Promise((r) => server.close(r));
+  }
+  throw new Error('本機連接埠都被占用');
 }
 
 // ---------- 設定 ----------
@@ -210,7 +226,7 @@ ipcMain.handle('export:expect', (_e, opts) => {
   });
   job.timer = setTimeout(() => finish(job, { ok: false, error: '引擎沒有產生檔案（逾時）' }), opts.timeoutMs || 180000);
   pending.push(job);
-  return { id: job.id, engineFile: job.engineFile };
+  return { id: job.id, engineFile: job.engineFile, enginePath: `/downloads/${job.engineFile}` };
 });
 
 ipcMain.handle('export:wait', (_e, id) => {
@@ -382,7 +398,68 @@ function createWindow() {
   });
 }
 
+// macOS 一定要有選單列（複製、貼上等快速鍵靠「編輯」選單）；Windows 不顯示選單列
+function setupMenu() {
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null);
+    return;
+  }
+  const name = '小柯機器人3D繪圖與列印工具';
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: name,
+        submenu: [
+          { label: `關於 ${name}`, click: () => win?.webContents.executeJavaScript("document.getElementById('dlgAbout').showModal()") },
+          { label: '檢查更新…', click: () => win?.webContents.executeJavaScript("document.getElementById('dlgAbout').showModal();document.getElementById('btnCheckUpdate').click()") },
+          { type: 'separator' },
+          { role: 'hide', label: `隱藏 ${name}` },
+          { role: 'hideOthers', label: '隱藏其他' },
+          { role: 'unhide', label: '全部顯示' },
+          { type: 'separator' },
+          { role: 'quit', label: `結束 ${name}` },
+        ],
+      },
+      {
+        label: '編輯',
+        submenu: [
+          { role: 'undo', label: '還原' },
+          { role: 'redo', label: '重做' },
+          { type: 'separator' },
+          { role: 'cut', label: '剪下' },
+          { role: 'copy', label: '拷貝' },
+          { role: 'paste', label: '貼上' },
+          { role: 'selectAll', label: '全選' },
+        ],
+      },
+      {
+        label: '顯示方式',
+        submenu: [
+          { role: 'togglefullscreen', label: '進入／結束全螢幕' },
+          { role: 'resetZoom', label: '實際大小' },
+          { role: 'zoomIn', label: '放大' },
+          { role: 'zoomOut', label: '縮小' },
+        ],
+      },
+      { role: 'windowMenu', label: '視窗' },
+    ]),
+  );
+}
+
+// 只開一個視窗：再次開啟時把原本的視窗叫到前面（每個設定資料夾各自一個）
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  });
+}
+
 app.whenReady().then(async () => {
+  if (!app.hasSingleInstanceLock()) return;
+  setupMenu();
   try {
     origin = await startServer();
   } catch (e) {

@@ -1,7 +1,7 @@
 {
   "name": "xiaoke-3d",
   "productName": "小柯機器人3D繪圖與列印工具",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "小柯機器人3D繪圖與列印工具：以 SolidCraft 參數化 CAD 繪製 3D 草圖，一鍵送到拓竹 Bambu Studio 切片列印",
   "author": {
     "name": "吳玉柱 先生與 Claude AI Opus 5.5",
@@ -17,11 +17,17 @@
     "e2e": "node e2e/smoke.mjs",
     "dist:win": "electron-builder --win nsis portable",
     "dist:mac": "electron-builder --mac dmg",
-    "icon": "electron scripts/make-icon.cjs"
+    "icon": "electron scripts/make-icon.cjs",
+    "build:web": "node scripts/build-web.mjs",
+    "serve:web": "node scripts/serve-web.mjs",
+    "e2e:web": "node e2e/web.mjs",
+    "e2e:bambu": "node e2e/bambu.mjs"
   },
   "devDependencies": {
+    "buffer": "^6.0.3",
     "electron": "45.0.0",
     "electron-builder": "25.1.8",
+    "esbuild": "^0.24.2",
     "opencc-js": "^1.0.5",
     "playwright-core": "1.48.2"
   },
@@ -88,13 +94,6 @@
     "dmg": {
       "title": "小柯機器人3D繪圖與列印工具 ${version}"
     },
-    "fileAssociations": [
-      {
-        "ext": "solidcraft",
-        "name": "SolidCraft 設計檔",
-        "description": "SolidCraft 設計檔"
-      }
-    ],
     "npmRebuild": false
   }
 }
