@@ -1,4 +1,6 @@
-# 小柯機器人3D繪圖與列印工具
+# 小柯機器人3D繪圖與列印工具 https://achir1015.github.io/xiaoke-3d/
+<img width="1918" height="1077" alt="image" src="https://github.com/user-attachments/assets/757161a1-94db-44b9-a8e8-a3bf7dc65ad5" />
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/5793aa51-92e2-444e-a46e-eef6d4aa7cd8" />
 
 以 **SolidCraft** 開源參數化 CAD 繪製 3D 草圖與模型，一鍵送到 **拓竹 Bambu Studio**（建議 V2.8.2.61）切片列印。
 
