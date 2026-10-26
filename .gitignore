@@ -1,0 +1,5 @@
+node_modules/
+engine/
+dist/
+e2e/out-*
+*.log

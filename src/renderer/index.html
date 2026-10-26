@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; font-src 'self'">
+  <title>小柯機器人3D繪圖與列印工具</title>
+  <link rel="icon" href="img/logo.svg">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="img/logo.svg" alt="">
+      <div>
+        <h1>小柯機器人3D繪圖與列印工具</h1>
+        <small id="brandSub">SolidCraft 參數化 3D 草圖 ✕ 拓竹 Bambu Studio 列印</small>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="btnWizard" class="tool on" title="開關左側的小柯草圖精靈">🧩 草圖精靈</button>
+      <button id="btnOpen" class="tool" title="開啟電腦裡的 3D 檔案（.solidcraft、3MF、STL、STEP、IGES、OBJ、glTF）">📂 開啟</button>
+      <button id="btnSave" class="tool" title="把目前設計存成 .solidcraft 設計檔（保留參數與時間軸）">💾 存設計檔</button>
+      <button id="btnPrintPanel" class="tool on" title="開關右側的列印助手">🖨️ 列印助手</button>
+      <button id="btnBambu" class="primary" title="匯出 3MF 並用 Bambu Studio 開啟切片">送到 Bambu Studio 列印</button>
+      <button id="btnUpdate" class="tool hidden" title="有新版本">⬆️ 新版本</button>
+      <button id="btnAbout" class="tool icon" title="關於與版本更新">ⓘ</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside id="wizard" class="panel left">
+      <div class="panel-head">
+        <h2>🧩 小柯草圖精靈</h2>
+        <p>選一個範本、填尺寸，小柯幫你畫好草圖並建立 3D 模型。建立後仍可在 SolidCraft 裡修改每一個草圖與尺寸。</p>
+      </div>
+      <div id="tplGrid" class="tpl-grid"></div>
+      <div id="tplForm" class="tpl-form hidden">
+        <div class="tpl-title"><button id="tplBack" class="link">← 範本</button><h3 id="tplName"></h3></div>
+        <p id="tplDesc" class="muted"></p>
+        <form id="tplFields" autocomplete="off"></form>
+        <label class="check"><input type="checkbox" id="tplNewDesign" checked> 建立成新的設計（取消勾選則加到目前設計）</label>
+        <p id="tplError" class="error hidden"></p>
+        <button id="tplCreate" class="primary wide">建立 3D 模型</button>
+      </div>
+      <div class="panel-sec">
+        <h3>✍️ 中文文字工具</h3>
+        <p class="muted">SolidCraft 內建字型沒有中文字；用這裡把繁體中文（或任何文字）轉成草圖外框。正在編輯草圖時會放進目前的草圖。</p>
+        <input id="txtValue" type="text" value="小柯機器人" maxlength="60">
+        <div class="row">
+          <select id="txtFont"></select>
+          <label class="inline">字高 <input id="txtSize" type="number" value="10" min="1" max="300" step="0.5"> mm</label>
+        </div>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="txtBold" checked> 粗體（思源黑體）</label>
+          <label class="inline">擠出 <input id="txtDepth" type="number" value="2" min="0" max="100" step="0.2"> mm</label>
+        </div>
+        <button id="txtInsert" class="wide">放進草圖／建立立體字</button>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <iframe id="engine" title="SolidCraft 3D 繪圖引擎" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+      <div id="loading" class="loading">
+        <img src="img/logo.svg" alt="">
+        <p id="loadingText">小柯正在啟動 SolidCraft 3D 繪圖引擎…</p>
+        <div class="bar"><span></span></div>
+      </div>
+    </section>
+
+    <aside id="printPanel" class="panel right">
+      <div class="panel-head">
+        <h2>🖨️ 列印助手</h2>
+        <p>確認模型放得進拓竹印表機，再一鍵送到 Bambu Studio 切片列印。</p>
+      </div>
+
+      <div class="panel-sec">
+        <h3>印表機與線材</h3>
+        <div class="row">
+          <select id="printer"></select>
+          <select id="material"></select>
+        </div>
+        <div id="bambuStatus" class="status-card">偵測 Bambu Studio 中…</div>
+      </div>
+
+      <div class="panel-sec">
+        <h3>模型檢查 <button id="btnMeasure" class="link small">重新量測</button></h3>
+        <div id="measure" class="measure muted">尚未量測</div>
+      </div>
+
+      <div class="panel-sec">
+        <h3>匯出</h3>
+        <label class="inline full">檔名 <input id="fileName" type="text" placeholder="（使用設計名稱）" maxlength="80"></label>
+        <label class="inline full">網格品質 <select id="quality"></select></label>
+        <button id="btnBambu2" class="primary wide">送到 Bambu Studio 列印（3MF）</button>
+        <div id="formatList" class="format-list"></div>
+        <div class="row small">
+          <span class="muted ellipsis" id="exportDir"></span>
+          <button id="btnChooseDir" class="link small">變更</button>
+          <button id="btnOpenDir" class="link small">開啟</button>
+        </div>
+      </div>
+
+      <div class="panel-sec">
+        <h3>最近匯出</h3>
+        <ul id="recent" class="recent"></ul>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="statusbar">
+    <span id="status">準備中…</span>
+    <span id="engineInfo" class="muted"></span>
+  </footer>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <dialog id="dlgAbout">
+    <form method="dialog">
+      <div class="about-head">
+        <img src="img/logo.svg" alt="">
+        <div>
+          <h2>小柯機器人3D繪圖與列印工具</h2>
+          <p>版本 <b id="aboutVersion"></b></p>
+        </div>
+      </div>
+      <p class="credit">開發者：吳玉柱 先生與 Claude AI Opus 5.5</p>
+      <ul class="about-list">
+        <li>3D 繪圖引擎：<a data-ext="https://github.com/tangency-labs/solidcraft">SolidCraft</a> <span id="aboutSc"></span>（MIT／Apache-2.0）</li>
+        <li>切片列印：<a data-ext="https://github.com/bambulab/BambuStudio">拓竹 Bambu Studio</a> <span id="aboutBambu"></span>（AGPL-3.0，獨立程式，本工具只負責開啟它）</li>
+        <li>中文字型：Noto Sans TC 思源黑體（SIL OFL 1.1）</li>
+      </ul>
+      <div id="updateBox" class="update-box">
+        <p id="updateText" class="muted">尚未檢查更新</p>
+        <div class="progress hidden" id="updateProgress"><span></span></div>
+        <div class="row">
+          <button type="button" id="btnCheckUpdate">檢查更新</button>
+          <button type="button" id="btnInstallUpdate" class="primary hidden">下載並安裝新版</button>
+          <button type="button" id="btnUpdatePage" class="link hidden">版本說明</button>
+        </div>
+      </div>
+      <div class="row end"><button value="close">關閉</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="dlgBambu">
+    <form method="dialog">
+      <h2>需要安裝 Bambu Studio</h2>
+      <p>這台電腦還沒有安裝拓竹 Bambu Studio，安裝後就能把模型一鍵送去切片列印。</p>
+      <p>建議版本：<b id="bambuRec"></b>（官方 GitHub 發行版）</p>
+      <div class="progress hidden" id="bambuProgress"><span></span></div>
+      <p id="bambuDlText" class="muted"></p>
+      <div class="row end">
+        <button type="button" id="btnBambuPage" class="link">官方下載頁</button>
+        <button type="button" id="btnBambuDownload" class="primary">下載並安裝（約 430 MB）</button>
+        <button value="close">稍後</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

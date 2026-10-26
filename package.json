@@ -1,0 +1,100 @@
+{
+  "name": "xiaoke-3d",
+  "productName": "小柯機器人3D繪圖與列印工具",
+  "version": "1.0.0",
+  "description": "小柯機器人3D繪圖與列印工具：以 SolidCraft 參數化 CAD 繪製 3D 草圖，一鍵送到拓竹 Bambu Studio 切片列印",
+  "author": {
+    "name": "吳玉柱 先生與 Claude AI Opus 5.5",
+    "email": "achir1015@gmail.com"
+  },
+  "license": "MIT",
+  "main": "src/main/main.js",
+  "scripts": {
+    "fetch-engine": "node scripts/fetch-engine.mjs",
+    "postinstall": "node scripts/fetch-engine.mjs",
+    "start": "electron .",
+    "test": "node --test test/*.test.mjs",
+    "e2e": "node e2e/smoke.mjs",
+    "dist:win": "electron-builder --win nsis portable",
+    "dist:mac": "electron-builder --mac dmg",
+    "icon": "electron scripts/make-icon.cjs"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "25.1.8",
+    "opencc-js": "^1.0.5",
+    "playwright-core": "1.48.2"
+  },
+  "dependencies": {
+    "clipper-lib": "^6.4.2",
+    "fontkit": "^2.0.4"
+  },
+  "homepage": "https://github.com/achir1015/xiaoke-3d",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "build": {
+    "appId": "com.achir.xiaoke3d",
+    "productName": "小柯機器人3D繪圖與列印工具",
+    "artifactName": "Xiaoke3D-${version}-${os}-${arch}.${ext}",
+    "copyright": "Copyright © 2026 吳玉柱",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "engine/**/*",
+      "!engine/.tmp-*",
+      "!engine/*.bak",
+      "package.json",
+      "node_modules/**/*",
+      "!node_modules/**/test/**",
+      "!node_modules/**/*.map",
+      "!node_modules/**/*.d.ts",
+      "!node_modules/**/*.md"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "executableName": "Xiaoke3D"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "小柯機器人3D繪圖與列印工具",
+      "uninstallDisplayName": "小柯機器人3D繪圖與列印工具",
+      "language": "1028",
+      "installerLanguages": [
+        "zh_TW"
+      ]
+    },
+    "portable": {
+      "artifactName": "Xiaoke3D-${version}-win-x64-portable.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.png",
+      "category": "public.app-category.graphics-design",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "identity": "-"
+    },
+    "dmg": {
+      "title": "小柯機器人3D繪圖與列印工具 ${version}"
+    },
+    "fileAssociations": [
+      {
+        "ext": "solidcraft",
+        "name": "SolidCraft 設計檔",
+        "description": "SolidCraft 設計檔"
+      }
+    ],
+    "npmRebuild": false
+  }
+}
