@@ -40,10 +40,10 @@ async function main() {
     mkdirSync(tmp, { recursive: true });
     const zipPath = join(tmp, ZIP);
     writeFileSync(zipPath, zip);
-    // Windows 10+ 與 macOS 都內建 tar（bsdtar），可直接解 zip
-    // （Windows 指定 System32 的 tar，避免 Git Bash 的 GNU tar 把 C: 當成遠端主機）
-    const tar = process.platform === 'win32' ? join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
-    execFileSync(tar, ['-xf', zipPath, '-C', tmp]);
+    // Windows 10+ 內建 bsdtar 可解 zip（指定 System32 的，避免 Git Bash 的 GNU tar 把 C: 當成遠端主機）；
+    // macOS 與 Linux（CI）用 unzip，GNU tar 不能解 zip
+    if (process.platform === 'win32') execFileSync(join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe'), ['-xf', zipPath, '-C', tmp]);
+    else execFileSync('unzip', ['-q', '-o', zipPath, '-d', tmp]);
     const inner = readdirSync(tmp).find((n) => n.startsWith('solidcraft-web'));
     if (!inner) throw new Error('壓縮檔內找不到 solidcraft-web 資料夾');
     rmSync(DEST, { recursive: true, force: true });
