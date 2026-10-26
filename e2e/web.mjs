@@ -25,7 +25,8 @@ let pass = 0, fail = 0;
 const ok = (c, m) => { c ? pass++ : fail++; console.log(`${c ? '✓' : '✗'} ${m}`); };
 const until = async (fn, ms = 120000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { const v = await page.evaluate(fn).catch(() => null); if (v) return v; await sleep(300); } return null; };
 try {
-  await page.goto(`http://127.0.0.1:${PORT}/`);
+  // BASE=https://achir1015.github.io/xiaoke-3d/ 可直接測正式的線上版
+  await page.goto(process.env.BASE || `http://127.0.0.1:${PORT}/`);
   ok(await until(() => document.getElementById('loading').classList.contains('hidden')), '線上版引擎載入');
   ok(await page.evaluate(() => document.body.classList.contains('web')), '線上版模式');
   ok((await page.textContent('#btnBambu')).includes('下載 3MF'), 'Bambu 按鈕改為下載 3MF');
